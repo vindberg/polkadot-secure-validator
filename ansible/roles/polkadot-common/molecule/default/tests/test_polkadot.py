@@ -1,11 +1,11 @@
-def polkadot_user(host):
+def test_polkadot_user(host):
     user = host.user('polkadot')
     assert user.exists
 
     group = host.group('polkadot')
     assert group.exists
 
-    assert user.group() == group
+    assert user.gid == group.gid
 
 
 def test_polkadot_binary(host):

@@ -1,29 +1,37 @@
 {
-  "name": "secure-validator",
-  "version": "0.1.0",
+  "name": "polkadot-secure-validator",
+  "version": "0.13.5",
   "main": "src/index.js",
-  "repository": "git@34.65.147.28:kusama/secure-validator.git",
+  "repository": "https://github.com/w3f/polkadot-secure-validator",
   "author": "Federico Gimenez <federico@web3.foundation>",
   "license": "GPL-3.0",
   "scripts": {
-    "lint": "eslint .",
-    "pretest": "npm run lint",
-    "test": "mocha --reporter spec --recursive",
-    "start": "node index.js"
-  },
-  "scripts": {
     "test": "mocha --reporter spec --recursive",
     "sync": "node . sync",
-    "clean": "node . clean"
+    "clean": "node . clean",
+    "lint": "eslint .",
+    "pretest": "yarn lint"
   },
+  "bin": {
+    "polkadot-secure-validator": "src/index.js"
+  },
+  "files": [
+    "/ansible",
+    "/src",
+    "/terraform",
+    "/tpl"
+  ],
   "dependencies": {
     "chalk": "^2.4.2",
     "commander": "^2.20.0",
-    "fs-extra": "^8.1.0"
+    "fs-extra": "^8.1.0",
+    "handlebars": "^4.2.0",
+    "node-forge": "^0.9.0",
+    "ospath": "^1.2.2"
   },
   "devDependencies": {
     "chai": "^4.2.0",
-    "eslint": "^6.0.1",
+    "eslint": "5.16.0",
     "mocha": "^6.2.0",
     "tmp": "^0.1.0"
   }

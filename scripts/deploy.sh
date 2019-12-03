@@ -1,11 +1,15 @@
 #!/bin/sh
 
 eval $(ssh-agent)
-for key in $SSH_ID_RSA_PUBLIC1 $SSH_ID_RSA_PUBLIC2 $SSH_ID_RSA_PUBLIC3 $SSH_ID_RSA_VALIDATOR; do
+for key in $SSH_ID_RSA_PUBLIC $SSH_ID_RSA_VALIDATOR; do
     chmod 600 "$key"
     ssh-add "$key"
 done
 
 yarn
 
-yarn sync
+if [ ! -z "${POLKADOT_SECURE_VALIDATOR_CONFIG_FILE}" ]; then
+    yarn sync -c "${POLKADOT_SECURE_VALIDATOR_CONFIG_FILE}"
+else
+    yarn sync
+fi

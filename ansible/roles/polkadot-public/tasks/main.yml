@@ -8,20 +8,18 @@
     group: root
     mode: 0600
 
-- name: start polkadot service
-  systemd:
-    name: polkadot.service
-    state: started
-  notify: enable polkadot service
+- name: restart polkadot service
+  shell: |
+    set -o pipefail
+    systemctl stop polkadot.service || true
 
-- name: save log with peer id
-  command: journalctl -u polkadot --no-pager
-  register: polkadot_log
-  until: polkadot_log.stdout is search("Local node identity is.*")
+    if [ -f /usr/local/bin/polkadot-new ]; then
+      cp /usr/local/bin/polkadot-new /usr/local/bin/polkadot
+      chown polkadot:polkadot /usr/local/bin/polkadot
+      chmod a+x /usr/local/bin/polkadot
+    fi
+    systemctl daemon-reload
+    systemctl start polkadot.service
+  args:
+    executable: /bin/bash
   changed_when: False
-
-- name: set peer id as fact
-  set_fact:
-    p2p_peer_id: "{{ polkadot_log.stdout | regex_search(regexp,'\\1') | first }}"
-  vars:
-    regexp: 'Local node identity is: ([\w]+)'

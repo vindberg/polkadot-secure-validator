@@ -1,7 +1,9 @@
-const fs = require('fs-extra');
 const path = require('path');
 
 const cmd = require('../cmd');
+const { Project } = require('../project');
+const tpl = require('../tpl');
+const { nodeExporterUsername, nodeExporterPassword } = require('../env');
 
 const inventoryFileName = 'inventory'
 
@@ -18,9 +20,9 @@ class Ansible {
   }
 
   async sync() {
-    this._writeInventory();
-    //return cmd.exec(`ansible all -b -m ping -i ${inventoryFileName}`, this.options);
-    return this._cmd(`main.yml -i ${inventoryFileName}`);
+    const inventoryPath = this._writeInventory();
+    //return this._cmd(`all -b -m ping -i ${inventoryFileName}`, this.options);
+    return this._cmd(`main.yml -f 30 -i ${inventoryPath}`);
   }
 
   async clean() {
@@ -33,51 +35,64 @@ class Ansible {
   }
 
   _writeInventory() {
-    const inventoryPath = path.join(this.ansiblePath, inventoryFileName);
-    const inventoryContents = `[validator]
-${this.config.validatorIpAddress}
+    const origin = path.resolve(__dirname, '..', '..', '..', 'tpl', 'ansible_inventory');
+    const project = new Project(this.config);
+    const buildDir = path.join(project.path(), 'ansible');
+    const target = path.join(buildDir, inventoryFileName);
+    const validators = this._genTplNodes(this.config.validators);
+    const publicNodes = this._genTplNodes(this.config.publicNodes, validators.length);
+    const data = {
+      project: this.config.project,
 
-[validator:vars]
-ansible_user=root
-vpnpeer_address=10.0.0.1
-vpnpeer_cidr_suffix=24
+      polkadotBinaryUrl: this.config.polkadotBinary.url,
+      polkadotBinaryChecksum: this.config.polkadotBinary.checksum,
+      polkadotNetworkId: this.config.polkadotNetworkId || 'ksmcc2',
 
-[public1]
-${this.config.public1IpAddress}
+      validators,
+      publicNodes,
 
-[public1:vars]
-ansible_user=ubuntu
-vpnpeer_address=10.0.0.2
-vpnpeer_cidr_suffix=24
+      validatorTelemetryUrl: this.config.validators.telemetryUrl,
+      publicTelemetryUrl: this.config.publicNodes.telemetryUrl,
 
-[public2]
-${this.config.public2IpAddress}
+      validatorLoggingFilter: this.config.validators.loggingFilter,
+      publicLoggingFilter: this.config.publicNodes.loggingFilter,
 
-[public2:vars]
-ansible_user=${this.config.defaultUser}
-vpnpeer_address=10.0.0.3
-vpnpeer_cidr_suffix=24
+      buildDir,
+    };
+    if (this.config.nodeExporter && this.config.nodeExporter.enabled) {
+      data.nodeExporterEnabled = true;
+      data.nodeExporterUsername = nodeExporterUsername;
+      data.nodeExporterPassword = nodeExporterPassword;
+      data.nodeExporterBinaryUrl = this.config.nodeExporter.binary.url;
+      data.nodeExporterBinaryChecksum = this.config.nodeExporter.binary.checksum;
+    } else {
+      data.nodeExporterEnabled = false;
+    }
 
-[public3]
-${this.config.public3IpAddress}
+    tpl.create(origin, target, data);
 
-[public3:vars]
-ansible_user=${this.config.defaultUser}
-vpnpeer_address=10.0.0.4
-vpnpeer_cidr_suffix=24
+    return target;
+  }
 
-[public:children]
-public1
-public2
-public3
+  _genTplNodes(nodeSet, offset=0) {
+    const output = [];
+    const vpnAddressBase = '10.0.0';
+    let counter = offset;
 
-[all:vars]
-ansible_ssh_common_args='-o StrictHostKeyChecking=no'
-`;
-    fs.writeFileSync(inventoryPath, inventoryContents);
+    nodeSet.nodes.forEach((node) => {
+      node.ipAddresses.forEach((ipAddress) => {
+        counter++;
+        const item = {
+          ipAddress,
+          sshUser: node.sshUser,
+          vpnAddress: `${vpnAddressBase}.${counter}`
+        };
+        output.push(item);
+      });
+    });
+    return output;
   }
 }
-
 
 module.exports = {
   Ansible

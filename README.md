@@ -1,27 +1,89 @@
+[![CircleCI](https://circleci.com/gh/w3f/polkadot-secure-validator.svg?style=svg)](https://circleci.com/gh/w3f/polkadot-secure-validator)
+
 # Polkadot Secure Validator Setup
 
-This repo describes a potential setup for a polkadot validator that aims to prevent
+This repo describes a potential setup for a Polkadot validator that aims to prevent
 some types of potential attacks.
 
 ## How to use
 
-This repo has code for creating a complete implementaion of the approach
-described [here](https://hackmd.io/QSJlqjZpQBihEU_ojmtR8g) from scratch, included
+This repo has code for creating a complete implementation of the approach
+described [here](https://hackmd.io/QSJlqjZpQBihEU_ojmtR8g) from scratch, including
 both layers described in [Workflow](#workflow). This can be done on a host with
-node, yarn and git installed with:
+NodeJS, Yarn and Git installed with:
+
+### Prerequisites
+
+Before using polkadot-secure-validator you need to have installed:
+
+* NodeJS (we recommend to use [nvm](https://github.com/nvm-sh/nvm))
+
+* [Yarn](https://yarnpkg.com/lang/en/docs/install)
+
+* [Terraform](https://www.terraform.io/downloads.html)
+
+* [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html)
+
+You will need credentials as environment variables for all the infrastructure providers
+used in the platform creation phase. The tool now supports AWS, Azure, GCP and packet,
+these are the required variables:
+
+* AWS: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` of an IAM account with EC2
+and VPC write access.
+* Azure: `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_SUBSCRIPTION_ID`,
+`ARM_TENANT_ID`, `TF_VAR_client_id` (same as `ARM_CLIENT_ID`),
+`TF_VAR_client_secret` (same as `ARM_CLIENT_SECRET`). All these credentials
+should correspond to a service principal with at least a `Contributor` role,
+see [here](https://docs.microsoft.com/en-us/azure/role-based-access-control/role-assignments-portal)
+for details or [create an issue](https://github.com/w3f/polkadot-secure-validator/issues/new) for
+finer grained access control.
+* GCP: `GOOGLE_APPLICATION_CREDENTIALS` (path to json file with credentials of
+the service account you want to use; this service account needs to have write
+access to compute and network resources).
+* PACKET: `TF_VAR_auth_token`.
+
+The tool allows you to specify which providers to use, so you don't need to have
+accounts in all of them, see [here](https://github.com/w3f/polkadot-secure-validator/blob/master/config/main.sample.json)
+for an example of how to define the providers. You could use, for instance,
+packet for the validators and GCP for the public nodes. Keep in mind that, the
+more distributed your public nodes, the fewer opportunities to be affected by
+potential incidents in the respective cloud providers.
+
+You need two additional environment variables to allow ansible to connect to the
+created machines:
+
+* `SSH_ID_RSA_PUBLIC`: path to private SSH key you want to use for the public
+nodes.
+
+* `SSH_ID_RSA_VALIDATOR`: path to private SSH key you want to use for the
+validators.
+
+### Syncronization
 
 ```
 $ git clone https://github.com/w3f/secure-validator
 $ cd secure-validator
 $ yarn
-$ yarn sync
+$ cp config/main.sample.json config/main.json
+# now you should customize config/main.json
+$ yarn sync -c config/main.json
 ```
-You will need credentials as environment variables for all the infrastructure providers
-used in the platform creation phase (AWS, Azure, GCP and packet).
 
 You can also just provision a set of previously created machines with the ansible code
 [here](./ansible). We have provided an [example inventory](./ansible/inventory.sample)
 that you can customize.
+
+The `sync` command is idempotent, unless there are errors it will always have
+the same results. You can execute it as much as you want, it will only make
+changes when the actual infrastructure state doesn't match the desired state.
+
+### Cleaning up
+
+You can remove all the created infrastructure with:
+
+```
+$ yarn clean -c config/main.json
+```
 
 ## Structure
 
@@ -37,9 +99,22 @@ the validator node is configured to only listen on the VPN-attached interface,
 and uses the cloud node's VPN address in the `--reserved-nodes` parameter. It is
 also protected by a firewall that only allows connections on the VPN port.
 
-This way, the only nodes allowed to connect to the validator are the public nodes,
-the rest only know the VPN multiaddr of the validator, and can't route messages
-to it without being part of the VPN.
+This way, the only nodes allowed to connect to the validator are the public nodes
+through the VPN. Messages sent by other validators can still reach it through
+gossiping, and these validators can know the IP address of the secure validator
+because of this, but can't directly connect to it without being part of the VPN.
+
+*WARNING*
+
+If you use this tool to create and/or configure your validator setup or
+implement your setup based on this approach take into account that if you add
+public telemetry endpoints to your nodes (either the validator or the public
+nodes) then the IP address of the validator will be publicly available too,
+given that the contents of the network state RPC call are sent to telemetry.
+
+Even though the secure validator in this setup only has the VPN port open and
+Wireguard has a reasonable [approach to mitigate DoS attacks](https://www.wireguard.com/protocol/#dos-mitigation),
+we recommend to not send this information to endpoints publicly accessible.
 
 ## Workflow
 
@@ -50,9 +125,9 @@ and the applications that run on top of it.
 
 Because of the different nature of the validator and the cloud nodes, the
 platform is hybrid, consisting of a bare-metal machine and cloud instances.
-However, we use terraform for creating both. The code for setting up the bare-
-metal machine is in this repothey up is in [terraform-modules](/terraform-modules)
-dir.
+However, we use terraform for creating both. The code for setting up the
+bare-metal machine is in the [terraform-modules](/terraform-modules) dir
+of this repository.
 
 The cloud instances are created on 3 different cloud providers for increased
 resiliency, and the bare-metal machine on packet.com. As part of the creation
@@ -111,7 +186,9 @@ configuration applied depend on the type of node:
         Description=Polkadot Node
 
         [Service]
-        ExecStart=/usr/local/bin/polkadot --name sv-public-0
+        ExecStart=/usr/local/bin/polkadot \
+            --name sv-public-0 \
+            --sentry
 
         Restart=always
 

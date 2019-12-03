@@ -1,40 +1,56 @@
-[validator]
-247.75.107.237
+[validator-0]
+147.75.76.65
 
-[validator:vars]
+[validator-0:vars]
 ansible_user=root
 vpnpeer_address=10.0.0.1
 vpnpeer_cidr_suffix=24
+telemetryUrl=wss://mi.private.telemetry.backend/
+loggingFilter='sync=trace,afg=trace,babe=debug'
 
-[public1]
-64.93.77.93
+[validator:children]
+validator-0
 
 
-[public1:vars]
+[public-0]
+18.184.100.247
+
+[public-0:vars]
 ansible_user=ubuntu
 vpnpeer_address=10.0.0.2
 vpnpeer_cidr_suffix=24
+telemetryUrl=wss://mi.private.telemetry.backend/
+loggingFilter='sync=trace,afg=trace,babe=debug'
 
-[public2]
-50.81.184.50
+[public-1]
+40.81.189.214
 
-[public2:vars]
+[public-1:vars]
 ansible_user=w3fadmin
 vpnpeer_address=10.0.0.3
 vpnpeer_cidr_suffix=24
+telemetryUrl=wss://mi.private.telemetry.backend/
+loggingFilter='sync=trace,afg=trace,babe=debug'
 
-[public3]
-45.243.244.130
+[public-2]
+35.190.164.158
 
-[public3:vars]
+[public-2:vars]
 ansible_user=w3fadmin
 vpnpeer_address=10.0.0.4
 vpnpeer_cidr_suffix=24
+telemetryUrl=wss://mi.private.telemetry.backend/
+loggingFilter='sync=trace,afg=trace,babe=debug'
 
 [public:children]
-public1
-public2
-public3
+public-0
+public-1
+public-2
 
 [all:vars]
-ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+project=w3f
+ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ConnectTimeout=15'
+polkadot_binary_url='https://github.com/w3f/polkadot/releases/download/v0.6.11/polkadot'
+polkadot_binary_checksum='sha256:ce6d4fd45f2c3ff91117423ed04c952ddde3b20f393e3ea05a2081f04b8a926b'
+polkadot_network_id=ksmcc2
+build_dir=/home/user/.config/polkadot-secure-validator/build/w3f/ansible

@@ -19,10 +19,23 @@
   command: ufw allow {{ vpn_port }}/udp
   when: not ufw_status_result.stdout is search(vpn_port ~ "/udp.*ALLOW IN.*Anywhere")
 
+- name: open node_exporter port
+  command: ufw allow 9100/tcp
+  when:
+    - node_exporter_enabled|default(false)|bool
+    - not ufw_status_result.stdout is search("9100/tcp.*ALLOW IN.*Anywhere")
+
 - name: open p2p port
   command: ufw allow {{ p2p_port }}/tcp
-  when: (not ufw_status_result.stdout is search(p2p_port ~ "/tcp.*ALLOW IN.*Anywhere")) and
-        (inventory_hostname in groups['public'])
+  when:
+    - not ufw_status_result.stdout is search(p2p_port ~ "/tcp.*ALLOW IN.*Anywhere")
+    - inventory_hostname in groups['public']
+
+- name: open p2p port for validators (vpn interface)
+  command: ufw allow in on wg0 to any port {{ p2p_port }} proto tcp
+  when:
+    - not ufw_status_result.stdout is search(p2p_port ~ "/tcp.*ALLOW IN.*Anywhere")
+    - inventory_hostname in groups['validator']
 
 - name: enable firewall
   shell: |
@@ -31,3 +44,24 @@
   args:
     executable: /bin/bash
   when: not ufw_status_result.stdout is search("Status.* active")
+
+- name: copy journald config
+  copy:
+    src: journald.conf
+    dest: /etc/systemd/journald.conf
+
+- name: journalctl vacuum
+  shell: |
+    set -o pipefail
+    journalctl --vacuum-size 1G
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: restart journald
+  systemd:
+    name: systemd-journald
+    state: restarted
+    daemon_reload: yes
+    enabled: yes
+  changed_when: false
